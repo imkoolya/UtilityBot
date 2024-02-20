@@ -1,20 +1,28 @@
 ﻿using Microsoft.Extensions.Hosting;
-using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types;
+using Telegram.Bot;
+
 class Bot : BackgroundService
 {
     private ITelegramBotClient _telegramClient;
-    private MessageController _messageController;
     private KeyboardController _keyboardController;
+    private MessageController _messageController;
+    private MessageController _defaultController;
+    private ISymbols _symbolsServices;
+    private INumbers _numbersServices;
 
-    public Bot(ITelegramBotClient telegramClient, MessageController messageController, KeyboardController keyboardController)
+
+    public Bot(ITelegramBotClient telegramClient, KeyboardController keyboardController, MessageController messageController, DefaultController defaulController, ISymbols symbolsServices, INumbers numbersServices)
     {
         _telegramClient = telegramClient;
-        _messageController = messageController;
         _keyboardController = keyboardController;
+        _messageController = messageController;
+        _defaultController = messageController;
+        _symbolsServices = symbolsServices;
+        _numbersServices = numbersServices;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -25,14 +33,16 @@ class Bot : BackgroundService
             new ReceiverOptions() { AllowedUpdates = { } },
             cancellationToken: stoppingToken);
 
-        Console.WriteLine("Bot started");
+        Console.WriteLine("Бот запущен");
     }
+
+    public string ActionCommand { get; set; }
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
         if (update.Type == UpdateType.CallbackQuery)
         {
-            await _keyboardController.Handle(update.CallbackQuery, update.Message, cancellationToken);
+            ActionCommand = await _keyboardController.Handle(update.CallbackQuery, cancellationToken);
             return;
         }
 
@@ -41,8 +51,31 @@ class Bot : BackgroundService
             switch (update.Message!.Type)
             {
                 case MessageType.Text:
+                    if (ActionCommand != null)
+                    {
+                        CommandHandler(botClient, update, cancellationToken, ActionCommand);
+                    }
                     await _messageController.Handle(update.Message, cancellationToken);
                     return;
+                default:
+                    await _defaultController.Handle(update.Message, cancellationToken);
+                    return;
+            }
+        }
+    }
+
+    async Task CommandHandler(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, string actionCommand)
+    {
+        if (update.Type == UpdateType.Message)
+        {
+            if (actionCommand == "Посчитать символы")
+            {
+                await _symbolsServices.CoutingChars(botClient, update, cancellationToken);
+            }
+
+            if ((actionCommand == "Посчитать сумму"))
+            {
+                await _numbersServices.SummingNumbers(botClient, update, cancellationToken);
             }
         }
     }
@@ -57,7 +90,7 @@ class Bot : BackgroundService
         };
 
         Console.WriteLine(errorMessage);
-        Console.WriteLine("Waiting 10 seconds before retry");
+        Console.WriteLine("Ожидание 10 секунд перед перезагрузкой...");
         Thread.Sleep(10000);
         return Task.CompletedTask;
     }

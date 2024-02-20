@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using System.Text;
 using Telegram.Bot;
 
-static class Program
+public class Program
 {
     public static async Task Main()
     {
@@ -14,17 +14,32 @@ static class Program
             .UseConsoleLifetime()
             .Build();
 
-        Console.WriteLine("Starting Service");
+        Console.WriteLine("Сервис запущен");
         await host.RunAsync();
-        Console.WriteLine("Service stopped");
+        Console.WriteLine("Сервис остановлен");
     }
 
     static void ConfigureServices(IServiceCollection services)
     {
-        services.AddSingleton<ITelegramBotClient>(provider => new TelegramBotClient("7141051558:AAGU1MUYda-Up7U2dz46qSsFXjfY27fC5KI"));
-        services.AddHostedService<Bot>();
-        services.AddTransient<MessageController>();
+        AppSettings appSettings = BuildAppSettings();
+        services.AddSingleton(BuildAppSettings());
+
         services.AddTransient<KeyboardController>();
-        services.AddTransient<Functions>();
+        services.AddTransient<MessageController>();
+        services.AddTransient<DefaultController>();
+        services.AddTransient<ISymbols, Symbols>();
+        services.AddTransient<INumbers, Numbers>();
+
+        services.AddSingleton<IStorage, MemoryStorage>();
+        services.AddSingleton<ITelegramBotClient>(provider => new TelegramBotClient(appSettings.BotToken));
+        services.AddHostedService<Bot>();
+    }
+
+    static AppSettings BuildAppSettings()
+    {
+        return new AppSettings()
+        {
+            BotToken = "TOKEN"
+        };
     }
 }
